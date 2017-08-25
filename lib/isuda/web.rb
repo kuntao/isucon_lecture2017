@@ -19,6 +19,8 @@ module Isuda
     set :public_folder, File.expand_path('../../../../public', __FILE__)
     set :db_isuda_user, ENV['ISUDA_DB_USER'] || 'root'
     set :db_isuda_password, ENV['ISUDA_DB_PASSWORD'] || ''
+    set :db_isutar_user, ENV['ISUTAR_DB_USER'] || 'root'
+    set :db_isutar_password, ENV['ISUTAR_DB_PASSWORD'] || ''
     set :dsn, ENV['ISUDA_DSN'] || 'dbi:mysql:db=isuda'
     set :session_secret, 'tonymoris'
     set :isupam_origin, ENV['ISUPAM_ORIGIN'] || 'http://localhost:5050'
@@ -52,11 +54,28 @@ module Isuda
       def db_isuda
         Thread.current[:db_isuda] ||=
           begin
-            _, _, attrs_part = settings.dsn.split(':', 3)
+            _, _, attrs_part = (ENV['ISUDA_DSN'] || 'dbi:mysql:db=isuda').split(':', 3)
             attrs = Hash[attrs_part.split(';').map {|part| part.split('=', 2) }]
             mysql = Mysql2::Client.new(
               username: settings.db_isuda_user,
               password: settings.db_isuda_password,
+              database: attrs['db'],
+              encoding: 'utf8mb4',
+              init_command: %|SET SESSION sql_mode='TRADITIONAL,NO_AUTO_VALUE_ON_ZERO,ONLY_FULL_GROUP_BY'|,
+            )
+            mysql.query_options.update(symbolize_keys: true)
+            mysql
+          end
+      end
+
+      def db_isutar
+        Thread.current[:db] ||=
+          begin
+            _, _, attrs_part = (ENV['ISUTAR_DSN'] || 'dbi:mysql:db=isutar').split(':', 3)
+            attrs = Hash[attrs_part.split(';').map {|part| part.split('=', 2) }]
+            mysql = Mysql2::Client.new(
+              username: settings.db_isutar_user,
+              password: settings.db_isutar_password,
               database: attrs['db'],
               encoding: 'utf8mb4',
               init_command: %|SET SESSION sql_mode='TRADITIONAL,NO_AUTO_VALUE_ON_ZERO,ONLY_FULL_GROUP_BY'|,

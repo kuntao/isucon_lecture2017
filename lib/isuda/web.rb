@@ -17,8 +17,8 @@ module Isuda
 
     set :erb, escape_html: true
     set :public_folder, File.expand_path('../../../../public', __FILE__)
-    set :db_user, ENV['ISUDA_DB_USER'] || 'root'
-    set :db_password, ENV['ISUDA_DB_PASSWORD'] || ''
+    set :db_isuda_user, ENV['ISUDA_DB_USER'] || 'root'
+    set :db_isuda_password, ENV['ISUDA_DB_PASSWORD'] || ''
     set :dsn, ENV['ISUDA_DSN'] || 'dbi:mysql:db=isuda'
     set :session_secret, 'tonymoris'
     set :isupam_origin, ENV['ISUPAM_ORIGIN'] || 'http://localhost:5050'
@@ -49,14 +49,14 @@ module Isuda
     end
 
     helpers do
-      def db
-        Thread.current[:db] ||=
+      def db_isuda
+        Thread.current[:db_isuda] ||=
           begin
             _, _, attrs_part = settings.dsn.split(':', 3)
             attrs = Hash[attrs_part.split(';').map {|part| part.split('=', 2) }]
             mysql = Mysql2::Client.new(
-              username: settings.db_user,
-              password: settings.db_password,
+              username: settings.db_isuda_user,
+              password: settings.db_isuda_password,
               database: attrs['db'],
               encoding: 'utf8mb4',
               init_command: %|SET SESSION sql_mode='TRADITIONAL,NO_AUTO_VALUE_ON_ZERO,ONLY_FULL_GROUP_BY'|,
@@ -70,11 +70,11 @@ module Isuda
         chars = [*'A'..'~']
         salt = 1.upto(20).map { chars.sample }.join('')
         salted_password = encode_with_salt(password: pw, salt: salt)
-        db.xquery(%|
+        db_isuda.xquery(%|
           INSERT INTO user (name, salt, password, created_at)
           VALUES (?, ?, ?, NOW())
         |, name, salt, salted_password)
-        db.last_id
+        db_isuda.last_id
       end
 
       def encode_with_salt(password: , salt: )
@@ -90,7 +90,7 @@ module Isuda
       end
 
       def htmlify(content)
-        keywords = db.xquery(%| select keyword from entry order by character_length(keyword) desc |)
+        keywords = db_isuda.xquery(%| select keyword from entry order by character_length(keyword) desc |)
         pattern = keywords.map {|k| Regexp.escape(k[:keyword]) }.join('|')
         kw2hash = {}
         hashed_content = content.gsub(/(#{pattern})/) {|m|
